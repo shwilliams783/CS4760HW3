@@ -52,13 +52,16 @@ void sigIntHandler(int signum)
 
 int main (int argc, char *argv[]) {
 int o;
+int i;
+int maxSlaves = 5;
+int numSlaves = 0;
+int maxTime = 20;
 char *sParam = NULL;
 char *lParam = NULL;
 char *tParam = NULL;
-int i;
-pid_t pid[20] = {getpid()};
 char timeArg[33];
 char msgArg[33];
+pid_t pid[20] = {getpid()};
 key_t keyTime = 8675;
 key_t keyMsg = 1138;
 FILE *fp;
@@ -68,7 +71,9 @@ signal(SIGINT, sigIntHandler);
 /* Options */
 while ((o = getopt (argc, argv, "hs:l:t:")) != -1)
 {
-    switch (o)
+	
+
+switch (o)
     {
 		case 'h':
 			perror("HELP MESSAGE\n");
@@ -82,6 +87,7 @@ while ((o = getopt (argc, argv, "hs:l:t:")) != -1)
 			break;
 		case 't':
 			tParam = optarg;
+			break;
 		case '?':
 			if (optopt == 's' || optopt == 'l' || optopt == 't')
 			{
@@ -91,9 +97,21 @@ while ((o = getopt (argc, argv, "hs:l:t:")) != -1)
 			return 1;
 		default:
 			break;
-    }
+    }	
 }
-printf("sParam = %s, lParam = %s, tParam = %s\n", sParam, lParam, tParam);
+if(sParam != NULL)
+{
+	maxSlaves = atoi(sParam);
+}
+if(lParam != NULL)
+{
+	/* File OPEN */
+}
+if(tParam != NULL)
+{
+	maxTime = atoi(tParam);
+}
+printf("sParam = %d, tParam = %d\n", maxSlaves, maxTime);
 	
 return 0;
 }
