@@ -112,6 +112,44 @@ if(tParam != NULL)
 	maxTime = atoi(tParam);
 }
 printf("sParam = %d, tParam = %d\n", maxSlaves, maxTime);
+
+/* Fork off child processes */
+for(i = 0; i < maxSlaves+1; i++)
+{
+	if(pid[i] != 0)
+	{
+		pid[i+1] = fork();
+	}
+	else if(pid[i] == 0)
+	{
+		/* snprintf(idArg, 10, "%d", index); */
+		/* snprintf(indexArg, 10, "%d", ((index-1)*5)); */
+		execl("./user", "user", (char*)0);
+	}
+}
 	
 return 0;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
