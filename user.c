@@ -8,6 +8,8 @@
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
+#include <semaphore.h>
+#include <fcntl.h>
 
 struct timer
 {
@@ -27,6 +29,7 @@ pid_t pid;
 char errmsg[100];
 struct timer *shmTime;
 struct message *shmMsg;
+sem_t * sem;
 /* Insert other shmid values here */
 
 void sigIntHandler(int signum)
@@ -61,6 +64,9 @@ key_t keyMsg = 1138;
 signal(SIGINT, sigIntHandler);
 pid = getpid();
 
+/* Seed random number generator */
+srand(pid * time(NULL));
+
 snprintf(errmsg, sizeof(errmsg), "USER %d: Slave process started!", pid);
 perror(errmsg);
 
@@ -83,6 +89,22 @@ if ((void *)shmMsg == (void *)-1)
     exit(1);
 }
 /********************END ATTACHMENT********************/
+
+/********************SEMAPHORE CREATION********************/
+/* Open Semaphore */
+sem=sem_open("pSem", 1);
+if(sem == SEM_FAILED) {
+	snprintf(errmsg, sizeof(errmsg), "USER %d: sem_open(pSem)...", pid);
+	perror(errmsg);
+    exit(1);
+}
+/********************END SEMAPHORE CREATION********************/
+
+/********************ENTER CRITICAL SECTION********************/
+sem_wait(sem);	/* P operation */
+printf ("USER %d is in critical section.\n", pid);
+sem_post(sem); /* V operation */  
+/********************EXIT CRITICAL SECTION********************/
 
 /* snprintf(errmsg, sizeof(errmsg), "USER %d: shmTime->seconds = %d shmTime->ns = %d\n", pid, shmTime->seconds, shmTime->ns);
 perror(errmsg);
