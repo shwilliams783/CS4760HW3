@@ -8,6 +8,8 @@
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
+#include <semaphore.h>
+#include <fcntl.h>
 
 struct timer
 {
@@ -28,6 +30,7 @@ int shmidTime;
 int shmidMsg;
 struct timer *shmTime;
 struct message *shmMsg;
+sem_t * sem;
 /* Insert other shmid values here */
 
 
@@ -65,6 +68,12 @@ void sigIntHandler(int signum)
 		snprintf(errmsg, sizeof(errmsg), "OSS: shmctl(shmidMsg)");
 		perror(errmsg);	
 	}
+	
+	/* Close Semaphore */
+	sem_unlink("pSem");   
+    sem_close(sem);  
+
+	/* Exit program */
 	exit(signum);
 }
 
@@ -171,6 +180,7 @@ if ((void *)shmMsg == (void *)-1)
 }
 /********************END ALLOCATION********************/
 
+/********************INITIALIZATION********************/
 /* Convert shmTime and shmMsg keys into strings for EXEC parameters */
 sprintf(timeArg, "%d", shmidTime);
 sprintf(msgArg, "%d", shmidMsg);
@@ -186,6 +196,17 @@ shmMsg->pid = 0;
 shmMsg->seconds = 0;
 shmMsg->ns = 0;
 /* printf("shmMsg->pid = %d shmMsg->seconds = %d shmMsg->ns = %d\n", shmMsg->pid, shmMsg->seconds, shmMsg->ns); */
+/********************END INITIALIZATION********************/
+
+/********************SEMAPHORE CREATION********************/
+/* Open Semaphore */
+sem=sem_open("pSem", O_CREAT | O_EXCL, 0644, 1);
+if(sem == SEM_FAILED) {
+	snprintf(errmsg, sizeof(errmsg), "OSS: sem_open(pSem)...");
+	perror(errmsg);
+    exit(1);
+}
+/********************END SEMAPHORE CREATION********************/
 
 /* Fork off child processes */
 for(i = 0; i < maxSlaves+1; i++)
@@ -203,7 +224,10 @@ for(i = 0; i < maxSlaves+1; i++)
 	}
 }
 
-sleep(maxTime);
+for(i = 0; i < maxTime; i++)
+{
+	sleep(1);
+}
 printf("OSS: Program allowed to complete!\n");
 
 /* Kill all slave processes */
@@ -242,6 +266,10 @@ if(errno == -1)
 	perror(errmsg);	
 }
 /********************END DEALLOCATION********************/
+
+/* Close Semaphore */
+sem_unlink("pSem");   
+sem_close(sem);  
 
 return 0;
 }
