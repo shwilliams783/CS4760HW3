@@ -94,17 +94,18 @@ pid_t myPid;
 key_t keyTime = 8675;
 key_t keyMsg = 1138;
 FILE *fp;
+char *fileName = "./msglog.out";
 signal(SIGINT, sigIntHandler);
+time_t start;
+time_t stop;
 
 
 
 /* Options */
 while ((o = getopt (argc, argv, "hs:l:t:")) != -1)
 {
-	
-
-switch (o)
-    {
+	switch (o)
+	{
 		case 'h':
 			perror("HELP MESSAGE\n");
 			exit(1);
@@ -127,16 +128,36 @@ switch (o)
 			return 1;
 		default:
 			break;
-    }	
+	}	
 }
+
+/* Set maximum number of slave processes */
 if(sParam != NULL)
 {
 	maxSlaves = atoi(sParam);
 }
+
+/* Set name of log file */
 if(lParam != NULL)
 {
-	/* File OPEN */
+	fp = fopen(lParam, "a");
+	if(fp == NULL)
+	{
+		snprintf(errmsg, sizeof(errmsg), "OSS: fopen(lParam).");
+		perror(errmsg);
+	}
 }
+else
+{
+	fp = fopen(fileName, "a");
+	if(fp == NULL)
+	{
+		snprintf(errmsg, sizeof(errmsg), "OSS: fopen(fileName).");
+		perror(errmsg);
+	}
+}
+
+/* Set maximum alloted run time in real time seconds */
 if(tParam != NULL)
 {
 	maxTime = atoi(tParam);
@@ -224,11 +245,30 @@ for(i = 0; i < maxSlaves+1; i++)
 	}
 }
 
-for(i = 0; i < maxTime; i++)
+/* Start the timer */
+start = time(NULL);
+do
 {
-	sleep(1);
-}
-printf("OSS: Program allowed to complete!\n");
+	if(shmMsg->pid != 0) /* Do we need a semaphore for this? */
+	{
+		snprintf(errmsg, sizeof(errmsg), "OSS: Child %d is terminating at my time %02d.%d because it reached %02d.%d in slave\n", shmMsg->pid, shmTime->seconds, shmTime->ns, shmMsg->seconds, shmMsg->ns);
+		fprintf(fp, errmsg);
+		shmMsg->ns = 0;
+		shmMsg->seconds = 0;
+		shmMsg->pid = 0;
+		/* increment total processes completed */
+		/* spawn new process */
+	}
+	shmTime->ns += rand()%1000;
+	if(shmTime->ns >= 1000000000)
+	{
+		shmTime->ns -= 1000000000;
+		shmTime->seconds += 1;
+	}
+	/* snprintf(errmsg, sizeof(errmsg), "OSS: SS = %02d NS = %d", shmTime->seconds, shmTime->ns);
+	perror(errmsg); */
+	stop = time(NULL);
+}while(stop-start < maxTime && shmTime->seconds < 2);
 
 /* Kill all slave processes */
 for(i = 1; i <= maxSlaves; i++)
