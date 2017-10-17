@@ -41,14 +41,14 @@ void sigIntHandler(int signum)
 	errno = shmdt(shmTime);
 	if(errno == -1)
 	{
-		snprintf(errmsg, sizeof(errmsg), "MASTER: shmdt(shmTime)");
+		snprintf(errmsg, sizeof(errmsg), "USER %d: shmdt(shmTime)", pid);
 		perror(errmsg);	
 	}
 
 	errno = shmdt(shmMsg);
 	if(errno == -1)
 	{
-		snprintf(errmsg, sizeof(errmsg), "MASTER: shmdt(shmMsg)");
+		snprintf(errmsg, sizeof(errmsg), "USER %d: shmdt(shmMsg)", pid);
 		perror(errmsg);	
 	}
 	exit(signum);
@@ -57,6 +57,8 @@ void sigIntHandler(int signum)
 int main (int argc, char *argv[]) {
 int o;
 int i;
+int endSec;
+int endNS;
 int timeKey = atoi(argv[1]);
 int msgKey = atoi(argv[2]);
 key_t keyTime = 8675;
@@ -100,9 +102,27 @@ if(sem == SEM_FAILED) {
 }
 /********************END SEMAPHORE CREATION********************/
 
+/* Calculate End Time */
+endNS = shmTime->ns + rand()%1000;
+endSec = shmTime->seconds;
+if (endNS > 1000000000)
+{
+	endNS -= 1000000000;
+	endSec += 1;
+}
+
+/* Wait for the system clock to pass the time */
+while(endNS < shmTime->ns && endSec <= shmTime->seconds);
+
 /********************ENTER CRITICAL SECTION********************/
 sem_wait(sem);	/* P operation */
-printf ("USER %d is in critical section.\n", pid);
+printf ("USER %d: is in critical section.\n", pid);
+while(shmMsg->pid != 0); /* Do we need another semaphore here? */
+shmMsg->ns = endNS;
+shmMsg->seconds = endSec;
+shmMsg->pid = pid;
+printf ("USER %d: endSec = %02d endNS = %d\n", pid, endSec, endNS);
+printf ("USER %d: is exiting critical section.\n", pid);
 sem_post(sem); /* V operation */  
 /********************EXIT CRITICAL SECTION********************/
 
