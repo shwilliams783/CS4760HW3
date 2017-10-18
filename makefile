@@ -1,6 +1,6 @@
 all : oss user
 clean :
-	rm oss.o user.o msglog.out
+	rm oss.o user.o msglog.out oss user
 oss : oss.o
 	gcc -pthread -g -o oss oss.o
 oss.o : oss.c
