@@ -30,6 +30,7 @@ char errmsg[100];
 struct timer *shmTime;
 struct message *shmMsg;
 sem_t * sem;
+sem_t * semSlaves;
 /* Insert other shmid values here */
 
 void sigIntHandler(int signum)
@@ -69,8 +70,8 @@ pid = getpid();
 /* Seed random number generator */
 srand(pid * time(NULL));
 
-snprintf(errmsg, sizeof(errmsg), "USER %d: Slave process started!", pid);
-perror(errmsg);
+/* snprintf(errmsg, sizeof(errmsg), "USER %d: Slave process started!", pid);
+perror(errmsg); */
 
 /********************MEMORY ATTACHMENT********************/
 /* Point shmTime to shared memory */
@@ -100,10 +101,17 @@ if(sem == SEM_FAILED) {
 	perror(errmsg);
     exit(1);
 }
+
+semSlaves = sem_open("slaveSem", 1);
+if(semSlaves == SEM_FAILED) {
+	snprintf(errmsg, sizeof(errmsg), "USER %d: sem_open(slaveSem)...", pid);
+	perror(errmsg);
+    exit(1);
+}
 /********************END SEMAPHORE CREATION********************/
 
 /* Calculate End Time */
-endNS = shmTime->ns + rand()%1000;
+endNS = shmTime->ns + (rand()%10000) + 1;
 endSec = shmTime->seconds;
 if (endNS > 1000000000)
 {
@@ -111,18 +119,21 @@ if (endNS > 1000000000)
 	endSec += 1;
 }
 
+/* printf("USER %d: endNS = %d endSec = %d\nshmTime->ns = %d shmTime->seconds = %d\n", pid, endNS, endSec, shmTime->ns, shmTime->seconds); */
+
 /* Wait for the system clock to pass the time */
-while(endNS < shmTime->ns && endSec <= shmTime->seconds);
+while(endSec != shmTime->seconds);
+while(endNS > shmTime->ns);
+/* printf("USER %d: endNS = %d endSec = %d shmTime->ns = %d shmTime->seconds = %d\n", pid, endNS, endSec, shmTime->ns, shmTime->seconds); */
+
+ /* Busy-Wait until oss.c clears the message */
+while(shmMsg->pid != 0);
 
 /********************ENTER CRITICAL SECTION********************/
 sem_wait(sem);	/* P operation */
-printf ("USER %d: is in critical section.\n", pid);
-while(shmMsg->pid != 0); /* Do we need another semaphore here? */
 shmMsg->ns = endNS;
 shmMsg->seconds = endSec;
 shmMsg->pid = pid;
-printf ("USER %d: endSec = %02d endNS = %d\n", pid, endSec, endNS);
-printf ("USER %d: is exiting critical section.\n", pid);
 sem_post(sem); /* V operation */  
 /********************EXIT CRITICAL SECTION********************/
 
@@ -147,5 +158,9 @@ errno = shmdt(shmTime);
 	}
 /********************END DETACHMENT********************/
 
+/* Post to semSlaves */
+sem_post(semSlaves);
+/* printf("USER: Child Finished!\n"); */
+exit(0);
 return 0;
 }
