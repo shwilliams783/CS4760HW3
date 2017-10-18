@@ -7,16 +7,16 @@ for a more comprehensive simulation later. This will require the use of fork, ex
 # Options
 # -h
 Help option: displays options and their usage for oss.c.
-Usage:\t ./oss -h
+Usage:   ./oss -h
 # -s
 Slave option: this option sets the number of slave processes from 1-19 (default 5).
-Usage:\t ./oss -s 10
+Usage:   ./oss -s 10
 # -l
 Logfile option: this option changes the name of the logfile to the chosen parameter (default msglog.out).
-Usage:\t ./oss -l output.txt
+Usage:   ./oss -l output.txt
 # -t
 Timeout option: this option sets the maximum run time allowed by the program in seconds before terminating (default 20).
-Usage:\t ./oss -t 5
+Usage:   ./oss -t 5
 
 # Specification File Dump:
 Operating System Simulator ./oss
