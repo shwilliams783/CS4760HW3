@@ -25,12 +25,13 @@ struct message
 };
 
 int errno;
-char errmsg[100];
+char errmsg[200];
 int shmidTime;
 int shmidMsg;
 struct timer *shmTime;
 struct message *shmMsg;
 sem_t * sem;
+sem_t * semSlaves;
 /* Insert other shmid values here */
 
 
@@ -72,7 +73,8 @@ void sigIntHandler(int signum)
 	/* Close Semaphore */
 	sem_unlink("pSem");   
     sem_close(sem);  
-
+	sem_unlink("slaveSem");
+	sem_close(semSlaves);
 	/* Exit program */
 	exit(signum);
 }
@@ -89,7 +91,7 @@ char *lParam = NULL;
 char *tParam = NULL;
 char timeArg[33];
 char msgArg[33];
-pid_t pid[20] = {getpid()};
+pid_t pid[101] = {getpid()};
 pid_t myPid;
 key_t keyTime = 8675;
 key_t keyMsg = 1138;
@@ -107,7 +109,16 @@ while ((o = getopt (argc, argv, "hs:l:t:")) != -1)
 	switch (o)
 	{
 		case 'h':
-			perror("HELP MESSAGE\n");
+			snprintf(errmsg, sizeof(errmsg), "oss.c simulates a primitive operating system that spawns processes and logs completion times to a file using a simulated clock.\n\n");
+			printf(errmsg);
+			snprintf(errmsg, sizeof(errmsg), "oss.c options:\n\n-h\tHelp option: displays options and their usage for oss.c.\nUsage:\t ./oss -h\n\n");
+			printf(errmsg);
+			snprintf(errmsg, sizeof(errmsg), "-s\tSlave option: this option sets the number of slave processes from 1-19 (default 5).\nUsage:\t ./oss -s 10\n\n");
+			printf(errmsg);
+			snprintf(errmsg, sizeof(errmsg), "-l\tLogfile option: this option changes the name of the logfile to the chosen parameter (default msglog.out).\nUsage:\t ./oss -l output.txt\n\n");
+			printf(errmsg);
+			snprintf(errmsg, sizeof(errmsg), "-t\tTimeout option: this option sets the maximum run time allowed by the program in seconds before terminating (default 20).\nUsage:\t ./oss -t 5\n");
+			printf(errmsg);
 			exit(1);
 			break;
 		case 's':
@@ -135,6 +146,14 @@ while ((o = getopt (argc, argv, "hs:l:t:")) != -1)
 if(sParam != NULL)
 {
 	maxSlaves = atoi(sParam);
+}
+if(maxSlaves < 0)
+{
+	maxSlaves = 5;
+}
+if(maxSlaves > 19)
+{
+	maxSlaves = 19;
 }
 
 /* Set name of log file */
@@ -227,10 +246,16 @@ if(sem == SEM_FAILED) {
 	perror(errmsg);
     exit(1);
 }
+semSlaves=sem_open("slaveSem", O_CREAT | O_EXCL, 0644, maxSlaves);
+if(semSlaves == SEM_FAILED) {
+	snprintf(errmsg, sizeof(errmsg), "OSS: sem_open(slaveSem)...");
+	perror(errmsg);
+    exit(1);
+}
 /********************END SEMAPHORE CREATION********************/
 
 /* Fork off child processes */
-for(i = 0; i < maxSlaves+1; i++)
+for(i = 0; i <= maxSlaves; i++)
 {
 	if(pid[i] != 0 && i < maxSlaves)
 	{
@@ -249,34 +274,59 @@ for(i = 0; i < maxSlaves+1; i++)
 start = time(NULL);
 do
 {
-	if(shmMsg->pid != 0) /* Do we need a semaphore for this? */
+	if(pid[numProc] != 0)
 	{
-		snprintf(errmsg, sizeof(errmsg), "OSS: Child %d is terminating at my time %02d.%d because it reached %02d.%d in slave\n", shmMsg->pid, shmTime->seconds, shmTime->ns, shmMsg->seconds, shmMsg->ns);
-		fprintf(fp, errmsg);
-		shmMsg->ns = 0;
-		shmMsg->seconds = 0;
-		shmMsg->pid = 0;
-		/* increment total processes completed */
-		/* spawn new process */
+		if(numSlaves < maxSlaves)
+		{
+			numSlaves += 1;
+			numProc += 1;
+			pid[numProc] = fork();
+			if(pid[numProc] == 0)
+			{
+				execl("./user", "user", timeArg, msgArg, (char*)0);
+			}
+		}
+		if(shmMsg->pid != 0)
+		{
+			sem_wait(semSlaves);
+			wait(shmMsg->pid);
+			snprintf(errmsg, sizeof(errmsg), "OSS: Child %d is terminating at my time %02d.%d because it reached %02d.%d in slave\n", shmMsg->pid, shmTime->seconds, shmTime->ns, shmMsg->seconds, shmMsg->ns);
+			fprintf(fp, errmsg);
+			shmMsg->ns = 0;
+			shmMsg->seconds = 0;
+			shmMsg->pid = 0;
+			numSlaves -= 1;
+		}
+		shmTime->ns += (rand()%10000) + 1;
+		if(shmTime->ns >= 1000000000)
+		{
+			shmTime->ns -= 1000000000;
+			shmTime->seconds += 1;
+		}
+		/*pid = getpid();
+		snprintf(errmsg, sizeof(errmsg), "OSS: SS = %02d NS = %d, PID = %d\n", shmTime->seconds, shmTime->ns, pid);
+		printf(errmsg); */
+		stop = time(NULL);
 	}
-	shmTime->ns += rand()%1000;
-	if(shmTime->ns >= 1000000000)
-	{
-		shmTime->ns -= 1000000000;
-		shmTime->seconds += 1;
-	}
-	/* snprintf(errmsg, sizeof(errmsg), "OSS: SS = %02d NS = %d", shmTime->seconds, shmTime->ns);
-	perror(errmsg); */
-	stop = time(NULL);
-}while(stop-start < maxTime && shmTime->seconds < 2);
+	/* myPid = getpid();
+	snprintf(errmsg, sizeof(errmsg), "OSS: myPid = %d numProc = %d, numSlaves = %d, maxSlaves = %d\n", myPid, numProc, numSlaves, maxSlaves);
+	printf(errmsg); */
+}while(stop-start < maxTime && shmTime->seconds < 2 && numProc < 100 + maxSlaves);
+/* }while(stop-start < maxTime && numProc < 100); */
+
+if(shmTime->seconds >= 2)
+{
+	snprintf(errmsg, sizeof(errmsg), "OSS: 2 simulated seconds have passed.");
+	perror(errmsg);
+}
+
 
 /* Kill all slave processes */
-for(i = 1; i <= maxSlaves; i++)
+for(i = 1; i <= numProc; i++)
 {
 	/* printf("Killing process #%d\n", pid[i]); */
 	kill(pid[i], SIGINT);
 }
-
 /********************DEALLOCATE MEMORY********************/
 errno = shmdt(shmTime);
 if(errno == -1)
@@ -309,7 +359,9 @@ if(errno == -1)
 
 /* Close Semaphore */
 sem_unlink("pSem");   
-sem_close(sem);  
+sem_close(sem);
+sem_unlink("slaveSem");
+sem_close(semSlaves);
 
 return 0;
 }
